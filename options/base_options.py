@@ -22,6 +22,7 @@ class BaseOptions():
         self.parser.add_argument('--verbose', action='store_true', default=False, help='toggles verbose')
         self.parser.add_argument('--fp16', action='store_true', default=False, help='train with AMP')
         self.parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+        self.parser.add_argument('--save_freq', type=int, default=150, help='how frequently the model saves')
 
         # input/output sizes
         self.parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
@@ -91,6 +92,8 @@ class BaseOptions():
         # save to the disk
         expr_dir = os.path.join(self.opt.checkpoints_dir, self.opt.name)
         util.mkdirs(expr_dir)
+        if not self.isTrain:
+            self.opt.continue_train = False
         if save and not self.opt.continue_train:
             file_name = os.path.join(expr_dir, 'opt.txt')
             with open(file_name, 'wt') as opt_file:

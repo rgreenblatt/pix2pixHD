@@ -19,6 +19,7 @@ class Pix2PixHDModel(BaseModel):
         return loss_filter
 
     def initialize(self, opt):
+
         BaseModel.initialize(self, opt)
         if opt.resize_or_crop != 'none' or not opt.isTrain: # when training at full res this causes OOM
             torch.backends.cudnn.benchmark = True
@@ -144,7 +145,6 @@ class Pix2PixHDModel(BaseModel):
         return input_label, inst_map, real_image, feat_map
 
     def discriminate(self, input_label, test_image, use_pool=False):
-        print("Printing Shape", input_label.shape, test_image.shape)
         input_concat = torch.cat((input_label, test_image.detach()), dim=1)
         if use_pool:
             fake_query = self.fake_pool.query(input_concat)
@@ -164,6 +164,9 @@ class Pix2PixHDModel(BaseModel):
         else:
             input_concat = input_label
         fake_image = self.netG.forward(input_concat)
+
+        # print("Printing Shape", input_label.shape, real_image.shape,
+        #  fake_image.shape)
 
         # Fake Detection and Loss
         pred_fake_pool = self.discriminate(input_label, fake_image, use_pool=True)
