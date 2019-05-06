@@ -152,28 +152,35 @@ class Pix2PixHDModel(BaseModel):
         else:
             return self.netD.forward(input_concat)
 
-    def forward(self, label, inst, image, feat, infer=False):
+    def forward(self, label, inst, image, feat, previous_label, previous_fake, 
+            previous_real, infer=False):
         # Encode Inputs
-        input_label, inst_map, real_image, feat_map = self.encode_input(label, inst, image, feat)
+        input_label, inst_map, real_image, feat_map = self.encode_input(label, inst, 
+                torch.cat((image, previous_real), dim=1), feat)
+
+        previous_input_label = self.encode_input(previous_label, None, None, 
+                None, None, False)[0]
 
         # Fake Generation
         if self.use_features:
             if not self.opt.load_features:
                 feat_map = self.netE.forward(real_image, inst_map)
-            input_concat = torch.cat((input_label, feat_map), dim=1)
+            input_concat_gan = torch.cat((input_label, feat_map, previous_input_label), dim=1)
         else:
-            input_concat = input_label
-        fake_image = self.netG.forward(input_concat)
+            input_concat_gan = input_label
 
-        # print("Printing Shape", input_label.shape, real_image.shape,
-        #  fake_image.shape)
+        fake_image = self.netG.forward(input_concat_gan)
+
+        input_concat_disc = torch.cat((input_label, previous_input_label), dim=1)
 
         # Fake Detection and Loss
-        pred_fake_pool = self.discriminate(input_label, fake_image, use_pool=True)
+        pred_fake_pool = self.discriminate(input_concat_disc, 
+                torch.cat((fake_image, previous_fake), dim=1), use_pool=True)
         loss_D_fake = self.criterionGAN(pred_fake_pool, False)
 
         # Real Detection and Loss
-        pred_real = self.discriminate(input_label, real_image)
+        pred_real = self.discriminate(input_concat_disc,
+                torch.cat((real_image, previous_real), dim=1))
         loss_D_real = self.criterionGAN(pred_real, True)
 
         # GAN loss (Fake Passability Loss)
