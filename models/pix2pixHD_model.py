@@ -35,8 +35,9 @@ class Pix2PixHDModel(BaseModel):
             netG_input_nc += 1
         if self.use_features:
             netG_input_nc += opt.feat_num
-        num_channels = 3
-        self.netG = networks.define_G(netG_input_nc + num_channels,
+        if not opt.no_temporal_smoothing:
+            netG_input_nc += 3
+        self.netG = networks.define_G(netG_input_nc,
                                       opt.output_nc,
                                       opt.ngf, opt.netG,
                                       opt.n_downsample_global,
@@ -51,7 +52,9 @@ class Pix2PixHDModel(BaseModel):
             netD_input_nc = input_nc + opt.output_nc
             if not opt.no_instance:
                 netD_input_nc += 1
-            self.netD = networks.define_D(netD_input_nc * 2, opt.ndf,
+            if not opt.no_temporal_smoothing:
+                netD_input_nc *= 2
+            self.netD = networks.define_D(netD_input_nc, opt.ndf,
                                           opt.n_layers_D, opt.norm,
                                           use_sigmoid, opt.num_D,
                                           not opt.no_ganFeat_loss,
@@ -60,7 +63,7 @@ class Pix2PixHDModel(BaseModel):
         ### Encoder network
         if self.gen_features:
             self.netE = networks.define_G(opt.output_nc, opt.feat_num, opt.nef,
-                                          'encoder', opt.n_downsample_E, 
+                                          'encoder', opt.n_downsample_E,
                                           norm=opt.norm, gpu_ids=self.gpu_ids)
         if self.opt.verbose:
                 print('---------- Networks initialized -------------')
@@ -170,37 +173,50 @@ class Pix2PixHDModel(BaseModel):
                                                                         image,
                                                                         feat)
 
-        previous_input_label, _, previous_input_real, _ = self.encode_input(
-            previous_label, None, previous_real, None
-        )
+        if not self.opt.no_temporal_smoothing:
+            previous_input_label, _, previous_input_real, _ = self.encode_input(
+                previous_label, None, previous_real, None)
+        else:
+            previous_input_label = None
 
         # Fake Generation
         if self.use_features:
             if not self.opt.load_features:
                 feat_map = self.netE.forward(real_image, inst_map)
-            input_concat_gan = torch.cat((input_label, feat_map,
-                                          previous_fake), dim=1)
+            input_concat_gan = torch.cat((input_label, feat_map), dim=1)
         else:
+            input_concat_gan = input_label
+
+        if not self.opt.no_temporal_smoothing:
             input_concat_gan = torch.cat((input_label, previous_fake),
                                          dim=1)
 
         fake_image = self.netG.forward(input_concat_gan)
 
-        input_concat_disc = torch.cat((input_label, previous_input_label), dim=1)
+        if self.opt.no_temporal_smoothing:
+            input_concat_disc = input_label
+        else:
+            input_concat_disc = torch.cat(
+                (input_label, previous_input_label), dim=1)
+
+        fake = fake_image if self.opt.no_temporal_smoothing \
+            else torch.cat(fake_image, previous_fake, dim = 1)
 
         # Fake Detection and Loss
         pred_fake_pool = self.discriminate(input_concat_disc,
-                torch.cat((fake_image, previous_fake), dim=1), use_pool=True)
+                                           fake, use_pool=True)
         loss_D_fake = self.criterionGAN(pred_fake_pool, False)
 
+        real = real_image if self.opt.no_temporal_smoothing \
+            else torch.cat(real_image, previous_real, dim = 1)
+
         # Real Detection and Loss
-        pred_real = self.discriminate(input_concat_disc,
-                torch.cat((real_image, previous_real), dim=1))
+        pred_real = self.discriminate(input_concat_disc, real)
         loss_D_real = self.criterionGAN(pred_real, True)
 
         # GAN loss (Fake Passability Loss)
-        pred_fake = self.netD.forward(torch.cat((input_concat_disc, fake_image,
-                                                  previous_fake), dim=1))
+        pred_fake = self.netD.forward(
+            torch.cat((input_concat_disc, fake), dim=1))
         loss_G_GAN = self.criterionGAN(pred_fake, True)
 
         # GAN feature matching loss
@@ -219,7 +235,10 @@ class Pix2PixHDModel(BaseModel):
             loss_G_VGG = self.criterionVGG(fake_image, real_image) * self.opt.lambda_feat
 
         # Only return the fake_B image if necessary to save BW
-        return [ self.loss_filter( loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG, loss_D_real, loss_D_fake ), None if not infer else fake_image.detach() ]
+        return [self.loss_filter(loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG,
+                                 loss_D_real, loss_D_fake),
+                None if not infer and self.opt.no_temporal_smoothing \
+                else fake_image.detach()]
 
     def inference(self, label, inst, image=None):
         # Encode Inputs
