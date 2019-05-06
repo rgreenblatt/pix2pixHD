@@ -260,7 +260,6 @@ class Pix2PixHDModel(BaseModel):
         if not self.opt.no_temporal_smoothing:
             input_concat = torch.cat((input_concat, prev_fake), dim=1)
 
-
         if torch.__version__.startswith('0.4'):
             with torch.no_grad():
                 fake_image = self.netG.forward(input_concat)
