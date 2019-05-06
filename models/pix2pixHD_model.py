@@ -200,7 +200,7 @@ class Pix2PixHDModel(BaseModel):
                 (input_label, previous_input_label), dim=1)
 
         fake = fake_image if self.opt.no_temporal_smoothing \
-            else torch.cat(fake_image, previous_fake, dim = 1)
+            else torch.cat((fake_image, previous_fake), dim = 1)
 
         # Fake Detection and Loss
         pred_fake_pool = self.discriminate(input_concat_disc,
@@ -208,7 +208,7 @@ class Pix2PixHDModel(BaseModel):
         loss_D_fake = self.criterionGAN(pred_fake_pool, False)
 
         real = real_image if self.opt.no_temporal_smoothing \
-            else torch.cat(real_image, previous_real, dim = 1)
+            else torch.cat((real_image, previous_real), dim = 1)
 
         # Real Detection and Loss
         pred_real = self.discriminate(input_concat_disc, real)
