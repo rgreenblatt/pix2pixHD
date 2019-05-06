@@ -35,9 +35,15 @@ class Pix2PixHDModel(BaseModel):
             netG_input_nc += 1
         if self.use_features:
             netG_input_nc += opt.feat_num
-        self.netG = networks.define_G(netG_input_nc, opt.output_nc, opt.ngf, opt.netG,
-                                      opt.n_downsample_global, opt.n_blocks_global, opt.n_local_enhancers,
-                                      opt.n_blocks_local, opt.norm, gpu_ids=self.gpu_ids)
+        num_channels = 3
+        self.netG = networks.define_G(netG_input_nc + num_channels,
+                                      opt.output_nc,
+                                      opt.ngf, opt.netG,
+                                      opt.n_downsample_global,
+                                      opt.n_blocks_global,
+                                      opt.n_local_enhancers,
+                                      opt.n_blocks_local, opt.norm,
+                                      gpu_ids=self.gpu_ids)
 
         # Discriminator network
         if self.isTrain:
@@ -45,13 +51,17 @@ class Pix2PixHDModel(BaseModel):
             netD_input_nc = input_nc + opt.output_nc
             if not opt.no_instance:
                 netD_input_nc += 1
-            self.netD = networks.define_D(netD_input_nc, opt.ndf, opt.n_layers_D, opt.norm, use_sigmoid,
-                                          opt.num_D, not opt.no_ganFeat_loss, gpu_ids=self.gpu_ids)
+            self.netD = networks.define_D(netD_input_nc * 2, opt.ndf,
+                                          opt.n_layers_D, opt.norm,
+                                          use_sigmoid, opt.num_D,
+                                          not opt.no_ganFeat_loss,
+                                          gpu_ids=self.gpu_ids)
 
         ### Encoder network
         if self.gen_features:
-            self.netE = networks.define_G(opt.output_nc, opt.feat_num, opt.nef, 'encoder',
-                                          opt.n_downsample_E, norm=opt.norm, gpu_ids=self.gpu_ids)
+            self.netE = networks.define_G(opt.output_nc, opt.feat_num, opt.nef,
+                                          'encoder', opt.n_downsample_E, 
+                                          norm=opt.norm, gpu_ids=self.gpu_ids)
         if self.opt.verbose:
                 print('---------- Networks initialized -------------')
 
@@ -160,7 +170,7 @@ class Pix2PixHDModel(BaseModel):
                                                                         image,
                                                                         feat)
 
-        previous_input_label, None, previous_input_real = self.encode_input(
+        previous_input_label, _, previous_input_real, _ = self.encode_input(
             previous_label, None, previous_real, None
         )
 
@@ -168,9 +178,11 @@ class Pix2PixHDModel(BaseModel):
         if self.use_features:
             if not self.opt.load_features:
                 feat_map = self.netE.forward(real_image, inst_map)
-            input_concat_gan = torch.cat((input_label, feat_map, previous_input_label), dim=1)
+            input_concat_gan = torch.cat((input_label, feat_map,
+                                          previous_fake), dim=1)
         else:
-            input_concat_gan = input_label
+            input_concat_gan = torch.cat((input_label, previous_fake),
+                                         dim=1)
 
         fake_image = self.netG.forward(input_concat_gan)
 
@@ -187,7 +199,8 @@ class Pix2PixHDModel(BaseModel):
         loss_D_real = self.criterionGAN(pred_real, True)
 
         # GAN loss (Fake Passability Loss)
-        pred_fake = self.netD.forward(torch.cat((input_label, fake_image), dim=1))
+        pred_fake = self.netD.forward(torch.cat((input_concat_disc, fake_image,
+                                                  previous_fake), dim=1))
         loss_G_GAN = self.criterionGAN(pred_fake, True)
 
         # GAN feature matching loss
@@ -206,7 +219,7 @@ class Pix2PixHDModel(BaseModel):
             loss_G_VGG = self.criterionVGG(fake_image, real_image) * self.opt.lambda_feat
 
         # Only return the fake_B image if necessary to save BW
-        return [ self.loss_filter( loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG, loss_D_real, loss_D_fake ), None if not infer else fake_image ]
+        return [ self.loss_filter( loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG, loss_D_real, loss_D_fake ), None if not infer else fake_image.detach() ]
 
     def inference(self, label, inst, image=None):
         # Encode Inputs
