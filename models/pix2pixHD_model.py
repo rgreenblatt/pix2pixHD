@@ -240,7 +240,7 @@ class Pix2PixHDModel(BaseModel):
                 None if not infer and self.opt.no_temporal_smoothing \
                 else fake_image.detach()]
 
-    def inference(self, label, inst, image=None):
+    def inference(self, label, inst, prev_fake=None, image=None):
         # Encode Inputs
         image = Variable(image) if image is not None else None
         input_label, inst_map, real_image, _ = self.encode_input(Variable(label), Variable(inst), image, infer=True)
@@ -256,6 +256,10 @@ class Pix2PixHDModel(BaseModel):
             input_concat = torch.cat((input_label, feat_map), dim=1)
         else:
             input_concat = input_label
+
+        if not self.opt.no_temporal_smoothing:
+            input_concat = torch.cat((input_concat, prev_fake), dim=1)
+
 
         if torch.__version__.startswith('0.4'):
             with torch.no_grad():
