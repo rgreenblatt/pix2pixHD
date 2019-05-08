@@ -16,10 +16,13 @@ def CreateDataset(opt):
 
 class SequentialDistributedSampler(DistributedSampler):
     def __iter__(self):
-        length = len(self.dataset) // self.total_size
+        length = len(self.dataset) // self.num_replicas
         start = self.rank * length
 
-        return range(start, start + length)
+        return iter(range(start, start + length))
+
+    def __len__(self):
+        return len(self.dataset) // self.num_replicas
 
 
 class CustomDatasetDataLoader(BaseDataLoader):
