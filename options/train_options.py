@@ -23,7 +23,7 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--beta1', type=float, default=0.5, help='momentum term of adam')
         self.parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
         self.parser.add_argument('--epochs', type=int, default=100, help='# of epochs to run for')
-        self.parser.add_argument('--prob_previous_zero', type=float, default=0.02, help='prob to set previous fram to zero')
+        self.parser.add_argument('--prob_restart_sequence', type=float, default=0.02, help='prob to set previous fram to zero')
 
         # for discriminators
         self.parser.add_argument('--num_D', type=int, default=2, help='number of discriminators to use')
