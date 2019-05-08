@@ -16,7 +16,7 @@ def CreateDataset(opt):
 
 class SequentialDistributedSampler(DistributedSampler):
     def __iter__(self):
-        length = len(self.dataset) / self.total_size
+        length = len(self.dataset) // self.total_size
         start = self.rank * length
 
         return range(start, start + length)
