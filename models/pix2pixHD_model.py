@@ -166,7 +166,7 @@ class Pix2PixHDModel(BaseModel):
             return self.netD.forward(input_concat)
 
     def forward(self, label, inst, image, feat, previous_label, previous_fake,
-            previous_real, infer=False, average=None):
+            previous_real, infer=False, average=False):
         # Encode Inputs
         input_label, inst_map, real_image, feat_map = self.encode_input(label,
                                                                         inst,
@@ -189,7 +189,7 @@ class Pix2PixHDModel(BaseModel):
 
 
         if not self.opt.no_temporal_smoothing:
-            if average is not None:
+            if average is not False:
                 input_concat_gan = torch.cat((input_label, average),
                                          dim=1)
             else:
