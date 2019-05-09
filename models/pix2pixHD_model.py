@@ -237,8 +237,7 @@ class Pix2PixHDModel(BaseModel):
         # Only return the fake_B image if necessary to save BW
         return [self.loss_filter(loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG,
                                  loss_D_real, loss_D_fake),
-                None if not infer and self.opt.no_temporal_smoothing \
-                else fake_image.detach()]
+                None if not infer else fake_image.detach()]
 
     def inference(self, label, inst, prev_fake=None, image=None):
         # Encode Inputs
